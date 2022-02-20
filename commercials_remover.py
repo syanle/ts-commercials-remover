@@ -101,14 +101,14 @@ def round_partial(value, resolution):
 def ffmpeg_command_single(ts_name, frame_groups):
     temp_list = []
     for index, frame_group in enumerate(frame_groups):
-        time = [round_partial(i/frame_count_read*duration, 0.02) for i in frame_group]
+        time = [round_partial(float(i)/frame_count_read*duration, 0.02) for i in frame_group]
         # https://superuser.com/questions/361329/how-can-i-get-the-length-of-a-video-file-from-the-console
         # have to choose -t duration
-        command = "ffmpeg -hide_banner -ss '{:.2f}' -i '{}.ts' -t '{:.2f}' -avoid_negative_ts make_zero -c copy -map '0:0' -map '0:1' -map_metadata 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-seg{:02d}.ts'".format(time[0],ts_name,time[1]-time[0],ts_name,index)
+        command = "ffmpeg -hide_banner -ss '{:.2f}' -i '{}.ts' -t '{:.2f}' -avoid_negative_ts make_zero -c copy -map '0:0' -map '0:1' -map_metadata 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-seg{:02d}.ts'".format(time[0],ts_name.encode('utf-8'),time[1]-time[0],ts_name.encode('utf-8'),index)
         os.system(command)
-        temp_list.append("{}-seg{:02d}.ts".format(ts_name, index))
+        temp_list.append("{}-seg{:02d}.ts".format(ts_name.encode('utf-8'), index))
     # https://stackoverflow.com/questions/47853134/os-system-unable-to-call-file-with-left-parenthesis-in-filename
-    # merge_command = "ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i <(find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\\n\" | sort) -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name)
-    merge_command = "find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name)
+    # merge_command = "ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i <(find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\\n\" | sort) -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name.encode('utf-8'))
+    merge_command = "find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name.encode('utf-8'))
     os.system(merge_command)
     os.system("rm *-seg*ts*")
