@@ -14,13 +14,19 @@ def dt2stamp(dt):
 
 # videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/1643974320000,1643976600000?a=1000"
 
-start_time = datetime(2022, 2, 18, 19, 32, 0, 0)
-end_time = datetime(2022, 2, 18, 20, 10, 0, 0)
+def get_date():
+    beijing_today = datetime.utcnow().date() + timedelta(hours = 8)
+    return beijing_today
+
+bj_today = get_date()
+
+start_time = datetime(bj_today.year, bj_today.month, bj_today.day, 19, 32, 0, 0)
+end_time = datetime(bj_today.year, bj_today.month, bj_today.day, 20, 10, 0, 0)
 
 video_name = u"《钱塘老娘舅》"+start_time.strftime("%Y年%m月%d日").decode("utf-8")
 
 videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
-#videoDownloader(videoUrl, video_name+'.ts')
+videoDownloader(videoUrl, video_name+'.ts')
 
 
 # ads remover
@@ -51,5 +57,5 @@ def uploadVideo(ColumnTitle):
         # dateDeleter()
         print 'Error found! Line deleting...'
 
-
+# Youtube API aquires audit these days
 # uploadVideo(video_name)
