@@ -40,7 +40,7 @@ else:
     video_name = "《钱塘老娘舅》"+start_time.strftime("%Y年%m月%d日")
 
 videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
-# videoDownloader(videoUrl, video_name+'.ts')
+videoDownloader(videoUrl, video_name+'.ts')
 
 
 # ads remover
