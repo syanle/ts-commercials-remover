@@ -2,14 +2,24 @@
 # coding:utf-8
 
 import m3u8
-from urllib2 import urlopen, URLError
-from urlparse import urlparse
-from sys import argv 
+
+try:
+    from urllib.request import urlopen
+    from urllib.error import URLError
+    from urllib.parse import urlparse
+except ImportError:  # Python 2.x
+    from urllib2 import urlopen, URLError
+    from urlparse import urlparse
+
+from sys import argv, version_info
 import time
 from retry_decorator import retry
 import socket
 
 from hashlib import md5
+
+PYTHON_MAJOR_VERSION = version_info
+
 deviceid = '315f94910a31a816fdba1fda12e0a7ac'
 
 
@@ -25,7 +35,10 @@ deviceid = '315f94910a31a816fdba1fda12e0a7ac'
 ###
 
 def py_md5(s):
-    return md5(s).hexdigest()
+    if PYTHON_MAJOR_VERSION < (3,):
+        return md5(s).hexdigest()
+    else:
+        return md5(s.encode('utf-8')).hexdigest()
 
 def getencrypion(deviceid):
     d = deviceid
@@ -40,6 +53,12 @@ def getencrypion(deviceid):
 def urlopen_with_retry(link):
     return urlopen(link, timeout=30)
 
+import requests
+class RequestsClient():
+    def download(self, uri, timeout=None, headers={}, verify_ssl=True):
+        o = requests.get(uri, timeout=timeout, headers=headers)
+        return o.text, o.url
+
 def videoDownloader(fileUrl, filePath):
     ts_file =  open(filePath, "wb")
 
@@ -50,13 +69,15 @@ def videoDownloader(fileUrl, filePath):
     while not Err_flag :
         encrypted_fileUrl = "{}&d={}&k={}&t={}".format(fileUrl, deviceid, getencrypion(deviceid), str(int(time.time())))
         print(encrypted_fileUrl)
-        m3u8_obj = m3u8.load(encrypted_fileUrl)
+        m3u8_obj = m3u8.load(encrypted_fileUrl, http_client=RequestsClient())
         print("encrypted_fileUrl updated")
 
         new_seg_flag = False
-        print time.strftime('%Y-%m-%d %H:%M:%S ',time.localtime(time.time())) , "#EXT-X-MEDIA-SEQUENCE:", m3u8_obj.media_sequence
+        print(time.strftime('%Y-%m-%d %H:%M:%S ',time.localtime(time.time())) , "#EXT-X-MEDIA-SEQUENCE:", m3u8_obj.media_sequence)
         
         seg_seq = m3u8_obj.media_sequence
+
+        print('len:', len(m3u8_obj.segments))
         
         for seg in  m3u8_obj.segments:
         
@@ -72,8 +93,8 @@ def videoDownloader(fileUrl, filePath):
         
 
             if seg_seq > retrive_seq :
-                if retrive_seq>=0 and seg_seq<>retrive_seq+1 :
-                    print "WARN: SEQ not continue!!!! %d - %d" , retrive_seq , seg_seq 
+                if retrive_seq>=0 and seg_seq!=retrive_seq+1 :
+                    print("WARN: SEQ not continue!!!! %d - %d" , retrive_seq , seg_seq)
 
                 retrive_seq = seg_seq        
                 new_seg_flag = True
@@ -88,11 +109,11 @@ def videoDownloader(fileUrl, filePath):
                     doc = resp.read()
                 except:
                     time.sleep(900)
-                    print "sleeping for 15 min"
+                    print("sleeping for 15 min")
                     continue
 
                 if resp.getcode()!=200 :
-                    print "Error HTTP resp code:" , resp.getcode(), segurl
+                    print("Error HTTP resp code:" , resp.getcode(), segurl)
                     # 可能是造成17年部分视频短的原因
                     Err_flag = True
                     break    
@@ -106,20 +127,20 @@ def videoDownloader(fileUrl, filePath):
                 dur = end_ts-start_ts
         
                 if dur > 8 :
-                    print "Error TOO SLOW!!!!! " ,  dur, size , size*8/dur/1024,  " - ", segurl 
+                    print("Error TOO SLOW!!!!! " ,  dur, size , size*8/dur/1024,  " - ", segurl) 
                 else:
-                    print dur, size , size*8/dur/1024,  " - ", segurl
+                    print(dur, size , size*8/dur/1024,  " - ", segurl)
 
                 ts_file.write(doc)     
             
-            time.sleep(0.2)
+            time.sleep(1)
             seg_seq = seg_seq + 1
             
         if m3u8_obj.is_endlist:
             break;
         elif not new_seg_flag :
             time.sleep(20) 
-            print "sleep 20s..." 
+            print("sleep 20s...") 
 
 
     ts_file.close()
