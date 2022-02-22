@@ -1,3 +1,5 @@
 *.ts
 *.json
 *.pyc
+__pycache__/
+*.swp
