@@ -108,7 +108,8 @@ def round_partial(value, resolution):
 def ffmpeg_command_single(ts_name, frame_groups):
     temp_list = []
     for index, frame_group in enumerate(frame_groups):
-        time = [round_partial(i/frame_count_read*duration, 0.02) for i in frame_group]
+        # no need to round the cutpoint, since ffmpeg will cut at the nearest keyframe (w/ given paras?
+        time = [i/frame_count_read*duration for i in frame_group]
         # https://superuser.com/questions/361329/how-can-i-get-the-length-of-a-video-file-from-the-console
         # have to choose -t duration
         command = "ffmpeg -hide_banner -ss '{:.2f}' -i '{}.ts' -t '{:.2f}' -avoid_negative_ts make_zero -c copy -map '0:0' -map '0:1' -map_metadata 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-seg{:02d}.ts'".format(time[0],ts_name,time[1]-time[0],ts_name,index)
