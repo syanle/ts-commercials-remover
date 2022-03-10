@@ -39,7 +39,11 @@ if PYTHON_MAJOR_VERSION < (3,):
 else:
     video_name = "《钱塘老娘舅》"+start_time.strftime("%Y年%m月%d日")
 
-videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
+# videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
+# channel06 is another choice when channel006 is broken
+# 06 is grabbed from http://tv.cztv.com/live1
+# 006 is from http://www.cztv.com/live/ the latter one is in a more old-fasion style
+videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel06/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
 videoDownloader(videoUrl, video_name+'.ts')
 
 

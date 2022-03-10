@@ -15,8 +15,9 @@ def is_ads(img):
     threshold = 0.8
     loc = np.where( res >= threshold)
 
-    for pt in zip(*loc[::-1]):
-        cv2.rectangle(img_rgb, pt, (pt[0] + w, pt[1] + h), (0,255,255), 2)
+    # plot a box over the matched img
+    # for pt in zip(*loc[::-1]):
+    #     cv2.rectangle(img_rgb, pt, (pt[0] + w, pt[1] + h), (0,255,255), 2)
 
     _is_ads = bool(loc[0].size and loc[1].size)
 
@@ -44,11 +45,54 @@ def get_isads_list(ts_name):
     # len(frame_list) != frame_count, why?
     pbar = tqdm(total=frame_count)
 
+    frame_step = 50
+    backward_refine_records = None
+    last_jump_ads_int = None
     while success:  # read frames
-        frame_index += 1
-        frame_list.append(int(is_ads(bgr_image)))
+        #frame_list_len = len(frame_list)
+        frame_index += frame_step
+        ads_int = int(is_ads(bgr_image))
+        print(ads_int)
+        if frame_step > 1:
+            if (last_jump_ads_int != None) and (ads_int != last_jump_ads_int):
+                # jump back and refine
+                # 0-based: set to 0 will read the 1st frame, like a cursor
+                # https://stackoverflow.com/questions/33650974/opencv-python-read-specific-frame-using-videocapture
+                video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index-frame_step+1)
+                print('not same as last jump, returning back and set step to 1')
+                frame_step = 1
+                backward_refine_records = []
+            else:
+                # no ads, append freely
+                frame_list += [ads_int]*(frame_step)
+                pbar.update(frame_step)
+                # 20 is a safety space
+                if frame_index+frame_step+20 < frame_count:
+                    # move to next jump
+                    video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+                else:
+                    print('going to end, step set to 1')
+                    frame_step = 1
+                    # no need to prepare for speeding up anymore
+                    backward_refine_records = None
+            last_jump_ads_int = ads_int
+        # can't be else or elif
+        # we should recheck in case frame_step set to 1 in last statement
+        if frame_step == 1:
+            frame_list.append(ads_int)
+            pbar.update(1)
+            # original step is not 1, now set to 1 to refine 
+            if backward_refine_records != None:
+                backward_refine_records.append(ads_int)
+                # 80 could be any suitable number that not smaller
+                # then the original frame_step.
+                # Check if refined items are all the same
+                if len(backward_refine_records)>80 and len(set(backward_refine_records))==1 and (frame_index+frame_step+20 < frame_count):
+                    frame_step = 50
+                    video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index+frame_step)
+                    print('always same in last 80 refining items, speed up!')
         success, bgr_image = video_capture.read()
-        pbar.update(1)
+        #pbar.update(len(frame_list)-frame_list_len)
     pbar.close()
     video_capture.release()
     
@@ -119,4 +163,4 @@ def ffmpeg_command_single(ts_name, frame_groups):
     # merge_command = "ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i <(find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\\n\" | sort) -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name)
     merge_command = "find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name)
     os.system(merge_command)
-    os.system("rm *-seg*ts*")
+    #os.system("rm *-seg*ts*")
