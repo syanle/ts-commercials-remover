@@ -41,74 +41,98 @@ def get_isads_list(ts_name):
     iscontinue = False
     success, bgr_image = video_capture.read()
 
-    frame_list = []
     # len(frame_list) != frame_count, why?
     pbar = tqdm(total=frame_count)
 
-    frame_step = 50
+    # cap.read() will automatically step to next index
+    # that is to say, the STEP means jump-to-jump gaps 
+    # iterated frames in one loop = step+read=step+1
+    # |last_jump|S|T|E|P|cap.read()|
+    PREFERED_STEP = 50-1 # just regard it as a number
+    current_step = PREFERED_STEP
     backward_refine_records = None
-    last_jump_ads_int = None
+    last_jump_ads_int = int(is_ads(bgr_image))
+    frame_list = [last_jump_ads_int,]
     while success:  # read frames
-        #frame_list_len = len(frame_list)
-        frame_index += frame_step
-        ads_int = int(is_ads(bgr_image))
-        print(ads_int)
-        if frame_step > 1:
-            if (last_jump_ads_int != None) and (ads_int != last_jump_ads_int):
-                # jump back and refine
-                # 0-based: set to 0 will read the 1st frame, like a cursor
-                # https://stackoverflow.com/questions/33650974/opencv-python-read-specific-frame-using-videocapture
-                video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index-frame_step+1)
-                print('not same as last jump, returning back and set step to 1')
-                frame_step = 1
-                backward_refine_records = []
-            else:
-                # no ads, append freely
-                frame_list += [ads_int]*(frame_step)
-                pbar.update(frame_step)
-                # 20 is a safety space
-                if frame_index+frame_step+20 < frame_count:
-                    # move to next jump
-                    video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-                else:
-                    print('going to end, step set to 1')
-                    frame_step = 1
-                    # no need to prepare for speeding up anymore
-                    backward_refine_records = None
-            last_jump_ads_int = ads_int
-        # can't be else or elif
-        # we should recheck in case frame_step set to 1 in last statement
-        if frame_step == 1:
+        current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
+        # -1 is OK, -10 for safety
+        # index won't exceed frame_count
+        if current_step == PREFERED_STEP and current_cap_cursor+current_step+10 >= frame_count:
+            success, bgr_image = video_capture.read()
+            ads_int = int(is_ads(bgr_image))
             frame_list.append(ads_int)
-            pbar.update(1)
-            # original step is not 1, now set to 1 to refine 
-            if backward_refine_records != None:
-                backward_refine_records.append(ads_int)
-                # 80 could be any suitable number that not smaller
-                # then the original frame_step.
-                # Check if refined items are all the same
-                if len(backward_refine_records)>80 and len(set(backward_refine_records[-80:]))==1 and (frame_index+frame_step+20 < frame_count):
-                    frame_step = 50
-                    video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index+frame_step)
-                    print('always same in last 80 refining items, speed up!')
-        success, bgr_image = video_capture.read()
-        #pbar.update(len(frame_list)-frame_list_len)
+            current_step = 1
+            backward_refine_records = None
+            last_jump_ads_int = None
+        # not near to the end
+        else:
+            if current_step == PREFERED_STEP: #17501
+                video_capture.set(cv2.CAP_PROP_POS_FRAMES, current_cap_cursor+current_step)
+                # must update after set, otherwise current_cap_cursor in following else condition will be wrong
+                current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
+                success, bgr_image = video_capture.read()
+                ads_int = int(is_ads(bgr_image))
+                # same as last big jump
+                if ads_int == last_jump_ads_int:
+                    frame_list += [ads_int]*(current_step+1)
+                    # pbar.update(current_step+1)
+                    last_jump_ads_int = ads_int
+                # return back and re-read
+                else:
+                    video_capture.set(cv2.CAP_PROP_POS_FRAMES, current_cap_cursor-current_step)
+                    # must update after set
+                    current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
+                    success, bgr_image = video_capture.read()
+                    ads_int = int(is_ads(bgr_image))
+                    frame_list.append(ads_int)
+                    # pbar.update(1)
+                    current_step = 1
+                    backward_refine_records = []
+                    last_jump_ads_int = None # ???
+            else:
+                success, bgr_image = video_capture.read()
+                # to improve
+                if not success:
+                    break
+                ads_int = int(is_ads(bgr_image))
+                frame_list.append(ads_int)
+                # pbar.update(1)
+                if backward_refine_records != None:
+                    backward_refine_records.append(ads_int)
+                    # +30 for safety
+                    backward_scope = PREFERED_STEP+30
+                    if len(backward_refine_records)>backward_scope and len(set(backward_refine_records[-backward_scope:]))==1:
+                        current_step = PREFERED_STEP
+                        last_jump_ads_int = ads_int
+                        backward_refine_records = None
+        pbar.update(video_capture.get(cv2.CAP_PROP_POS_FRAMES) - pbar.n)
+        # assert
+        assert(len(frame_list) == pbar.n, "frame_list or pbar.n is ahead")
     pbar.close()
     video_capture.release()
     
     global frame_count_read
     frame_count_read = len(frame_list)
-    
     return frame_list
     
 from itertools import groupby
 def smooth_and_compress(frame_list):
     groups = [(k, sum(1 for i in g)) for k,g in groupby(frame_list)]
     # to find outliers
+    too_small_group = 600
     for index, group in enumerate(groups):
         # no more than 5 consecutive mis-recognized frames in a group (sliding window)
-        if group[1] < 500:
-            groups[index] = (int(not groups[index][0]), groups[index][1])
+        if group[1] < too_small_group and group[0] == 1:
+            groups[index] = (0, groups[index][1])
+    # flatten and re-group
+    groups = uncompressed_groups(groups)
+    groups = [(k, sum(1 for i in g)) for k,g in groupby(groups)]
+    # fix #3, must re-check in a new loop
+    # invert small groups of 0s in ads
+    for index, group in enumerate(groups):
+        # no more than 5 consecutive mis-recognized frames in a group (sliding window)
+        if group[1] < too_small_group and group[0] == 0:
+            groups[index] = (1, groups[index][1])
     # compress to list of sets
     compressed_groups = []
     for group in groups:
