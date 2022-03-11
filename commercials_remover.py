@@ -87,7 +87,7 @@ def get_isads_list(ts_name):
                 # 80 could be any suitable number that not smaller
                 # then the original frame_step.
                 # Check if refined items are all the same
-                if len(backward_refine_records)>80 and len(set(backward_refine_records))==1 and (frame_index+frame_step+20 < frame_count):
+                if len(backward_refine_records)>80 and len(set(backward_refine_records[-80:]))==1 and (frame_index+frame_step+20 < frame_count):
                     frame_step = 50
                     video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index+frame_step)
                     print('always same in last 80 refining items, speed up!')
@@ -106,8 +106,8 @@ def smooth_and_compress(frame_list):
     groups = [(k, sum(1 for i in g)) for k,g in groupby(frame_list)]
     # to find outliers
     for index, group in enumerate(groups):
-        # no more than 5 recognization failed consecutive frames in a group (sliding window)
-        if group[1] < 30:
+        # no more than 5 consecutive mis-recognized frames in a group (sliding window)
+        if group[1] < 500:
             groups[index] = (int(not groups[index][0]), groups[index][1])
     # compress to list of sets
     compressed_groups = []
@@ -161,6 +161,6 @@ def ffmpeg_command_single(ts_name, frame_groups):
         temp_list.append("{}-seg{:02d}.ts".format(ts_name, index))
     # https://stackoverflow.com/questions/47853134/os-system-unable-to-call-file-with-left-parenthesis-in-filename
     # merge_command = "ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i <(find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\\n\" | sort) -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name)
-    merge_command = "find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name)
+    merge_command = "find . -type f -name '{}-seg*ts' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name, ts_name)
     os.system(merge_command)
-    #os.system("rm *-seg*ts*")
+    os.system("rm {}-seg*ts".format(ts_name))
