@@ -29,6 +29,11 @@ bj_today = get_date()
 start_time = datetime(bj_today.year, bj_today.month, bj_today.day, 19, 32, 0, 0)
 end_time = datetime(bj_today.year, bj_today.month, bj_today.day, 20, 10, 0, 0)
 
+# change working dir to the script's dir
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+
 # strftime must pass into str
 if PYTHON_MAJOR_VERSION < (3,):
     # have to give the string in unicode and than encode

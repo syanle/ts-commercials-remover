@@ -48,7 +48,7 @@ def get_isads_list(ts_name):
     # that is to say, the STEP means jump-to-jump gaps 
     # iterated frames in one loop = step+read=step+1
     # |last_jump|S|T|E|P|cap.read()|
-    PREFERED_STEP = 50-1 # just regard it as a number
+    PREFERED_STEP = 200-1 # just regard it as a number
     current_step = PREFERED_STEP
     backward_refine_records = None
     last_jump_ads_int = int(is_ads(bgr_image))
@@ -107,7 +107,7 @@ def get_isads_list(ts_name):
                         backward_refine_records = None
         pbar.update(video_capture.get(cv2.CAP_PROP_POS_FRAMES) - pbar.n)
         # assert
-        assert(len(frame_list) == pbar.n, "frame_list or pbar.n is ahead")
+        assert(len(frame_list) == pbar.n, "neither frame_list nor pbar.n is ahead")
     pbar.close()
     video_capture.release()
     
@@ -183,8 +183,10 @@ def ffmpeg_command_single(ts_name, frame_groups):
         command = "ffmpeg -hide_banner -ss '{:.2f}' -i '{}.ts' -t '{:.2f}' -avoid_negative_ts make_zero -c copy -map '0:0' -map '0:1' -map_metadata 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-seg{:02d}.ts'".format(time[0],ts_name,time[1]-time[0],ts_name,index)
         os.system(command)
         temp_list.append("{}-seg{:02d}.ts".format(ts_name, index))
+    os.system("rm {}.ts".format(ts_name))
     # https://stackoverflow.com/questions/47853134/os-system-unable-to-call-file-with-left-parenthesis-in-filename
-    # merge_command = "ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i <(find . -type f -name '*-seg*ts*' -printf \"file '$PWD/%p'\\n\" | sort) -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name)
-    merge_command = "find . -type f -name '{}-seg*ts' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-merged.ts'".format(ts_name, ts_name)
+    # merge_command = "find . -type f -name '{}-seg*ts' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-trimmed.ts'".format(ts_name, ts_name)
+    seg_files = ''.join(["file '{}'\n".format(seg) for seg in temp_list])
+    merge_command = "printf \"{}\" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-trimmed.ts'".format(seg_files, ts_name)
     os.system(merge_command)
     os.system("rm {}-seg*ts".format(ts_name))
