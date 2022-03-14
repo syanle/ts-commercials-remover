@@ -3,16 +3,16 @@ import cv2, os
 import numpy as np
 from tqdm import tqdm
 
-template = cv2.imread('qiantanglaoniangjiu_logo_smallist.png',0)
-w, h = template.shape[::-1]
 
-def is_ads(img):
+# w, h = template.shape[::-1]
+
+def is_ads(img, template, threshold):
     img_rgb = img
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
 
     res = cv2.matchTemplate(img_gray,template,cv2.TM_CCOEFF_NORMED)
     # 0.9 will fail if running words blocked
-    threshold = 0.8
+    # threshold = 0.8
     loc = np.where( res >= threshold)
 
     # plot a box over the matched img
@@ -25,7 +25,8 @@ def is_ads(img):
 
 duration = 0
 frame_count_read = 0
-def get_isads_list(ts_name):
+# PREFERED_STEP should set to 0, if want to read frame by frame
+def get_isads_list(ts_name, template, threshold=0.8, PREFERED_STEP=200-1):
     # read into
     video_capture = cv2.VideoCapture(ts_name+".ts") 
 
@@ -35,10 +36,7 @@ def get_isads_list(ts_name):
     duration = frame_count/fps
 
     size = (int(video_capture.get(3)), int(video_capture.get(4)))
-    frame_index = 0
-    flag = 0
-    delay = 90
-    iscontinue = False
+
     success, bgr_image = video_capture.read()
 
     # len(frame_list) != frame_count, why?
@@ -48,66 +46,77 @@ def get_isads_list(ts_name):
     # that is to say, the STEP means jump-to-jump gaps 
     # iterated frames in one loop = step+read=step+1
     # |last_jump|S|T|E|P|cap.read()|
-    PREFERED_STEP = 200-1 # just regard it as a number
+    # PREFERED_STEP = 200-1 # just regard it as a number, step should be renamed to gap, for a better understanding
     current_step = PREFERED_STEP
     backward_refine_records = None
-    last_jump_ads_int = int(is_ads(bgr_image))
+    last_jump_ads_int = int(is_ads(bgr_image, template, threshold))
     frame_list = [last_jump_ads_int,]
     while success:  # read frames
         current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
         # -1 is OK, -10 for safety
-        # index won't exceed frame_count
-        if current_step == PREFERED_STEP and current_cap_cursor+current_step+10 >= frame_count:
-            success, bgr_image = video_capture.read()
-            ads_int = int(is_ads(bgr_image))
-            frame_list.append(ads_int)
-            current_step = 1
-            backward_refine_records = None
-            last_jump_ads_int = None
-        # not near to the end
-        else:
-            if current_step == PREFERED_STEP: #17501
-                video_capture.set(cv2.CAP_PROP_POS_FRAMES, current_cap_cursor+current_step)
-                # must update after set, otherwise current_cap_cursor in following else condition will be wrong
-                current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
+        if PREFERED_STEP: # >=0
+            # index won't exceed frame_count
+            if current_step == PREFERED_STEP and current_cap_cursor+current_step+10 >= frame_count:
                 success, bgr_image = video_capture.read()
-                ads_int = int(is_ads(bgr_image))
-                # same as last big jump
-                if ads_int == last_jump_ads_int:
-                    frame_list += [ads_int]*(current_step+1)
-                    # pbar.update(current_step+1)
-                    last_jump_ads_int = ads_int
-                # return back and re-read
-                else:
-                    video_capture.set(cv2.CAP_PROP_POS_FRAMES, current_cap_cursor-current_step)
-                    # must update after set
+                ads_int = int(is_ads(bgr_image, template, threshold))
+                frame_list.append(ads_int)
+                current_step = 1-1 # 0, actually jump frame by frame
+                backward_refine_records = None
+                last_jump_ads_int = None
+            # not near to the end
+            else:
+                # big jump
+                if current_step == PREFERED_STEP:
+                    video_capture.set(cv2.CAP_PROP_POS_FRAMES, current_cap_cursor+current_step)
+                    # must update after set, otherwise current_cap_cursor in following else condition will be wrong
                     current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
                     success, bgr_image = video_capture.read()
-                    ads_int = int(is_ads(bgr_image))
+                    ads_int = int(is_ads(bgr_image, template, threshold))
+                    # same as last big jump
+                    if ads_int == last_jump_ads_int:
+                        frame_list += [ads_int]*(current_step+1)
+                        # pbar.update(current_step+1)
+                        last_jump_ads_int = ads_int
+                    # return back and re-read
+                    else:
+                        video_capture.set(cv2.CAP_PROP_POS_FRAMES, current_cap_cursor-current_step)
+                        # must update after set
+                        current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
+                        success, bgr_image = video_capture.read()
+                        ads_int = int(is_ads(bgr_image, template, threshold))
+                        frame_list.append(ads_int)
+                        # pbar.update(1)
+                        current_step = 0
+                        backward_refine_records = []
+                        last_jump_ads_int = None # ???
+                # frame by frame, but hope to speed up
+                else:
+                    success, bgr_image = video_capture.read()
+                    # to improve
+                    if not success:
+                        break
+                    ads_int = int(is_ads(bgr_image, template, threshold))
                     frame_list.append(ads_int)
                     # pbar.update(1)
-                    current_step = 1
-                    backward_refine_records = []
-                    last_jump_ads_int = None # ???
-            else:
-                success, bgr_image = video_capture.read()
-                # to improve
-                if not success:
-                    break
-                ads_int = int(is_ads(bgr_image))
-                frame_list.append(ads_int)
-                # pbar.update(1)
-                if backward_refine_records != None:
-                    backward_refine_records.append(ads_int)
-                    # +30 for safety
-                    backward_scope = PREFERED_STEP+30
-                    if len(backward_refine_records)>backward_scope and len(set(backward_refine_records[-backward_scope:]))==1:
-                        current_step = PREFERED_STEP
-                        last_jump_ads_int = ads_int
-                        backward_refine_records = None
+                    if backward_refine_records != None:
+                        backward_refine_records.append(ads_int)
+                        # +30 for safety
+                        backward_scope = PREFERED_STEP+30
+                        if len(backward_refine_records)>backward_scope and len(set(backward_refine_records[-backward_scope:]))==1:
+                            current_step = PREFERED_STEP
+                            last_jump_ads_int = ads_int
+                            backward_refine_records = None
+        # PREFERED_STEP set to 0, always frame by frame
+        else:
+            success, bgr_image = video_capture.read()
+            # to improve
+            if not success:
+                break
+            ads_int = int(is_ads(bgr_image, template, threshold))
+            frame_list.append(ads_int)
         pbar.update(video_capture.get(cv2.CAP_PROP_POS_FRAMES) - pbar.n)
-        # assert
-        assert(len(frame_list) == pbar.n, "neither frame_list nor pbar.n is ahead")
+        # if not equal, means frame_list appended incorrectly 
+        assert len(frame_list) == pbar.n, "frame_list or pbar.n is ahead"
     pbar.close()
     video_capture.release()
     

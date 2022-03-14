@@ -55,9 +55,29 @@ videoDownloader(videoUrl, video_name+'.ts')
 # ads remover
 from commercials_remover import *
 
-frame_list = get_isads_list(video_name)
+template = cv2.imread('qiantanglaoniangjiu_logo_smallist.png',0)
+frame_list = get_isads_list(video_name, template)
+
+# trim ending
+template_end = cv2.imread('end_logo.png',0)
+cap = cv2.VideoCapture(video_name+".ts")
+backward_index = len(frame_list)-1
+cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
+success, bgr_image = cap.read()
+while success and not is_ads(bgr_image, template_end, 0.9):
+    backward_index -= 1
+    print(backward_index)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
+    success, bgr_image = cap.read()
+    # only reverse check last 1/5 part
+    if len(frame_list)-backward_index > len(frame_list)/5:
+        break
+frame_list = frame_list[:backward_index] + len(frame_list[backward_index:])*[1,]
+
 frame_groups = extract_content_frames(smooth_and_compress(frame_list))
+print(frame_groups)
 ffmpeg_command_single(video_name, frame_groups)
+
 
 # YouTube uploader
 
