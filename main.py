@@ -56,7 +56,7 @@ videoDownloader(videoUrl, video_name+'.ts')
 from commercials_remover import *
 
 template = cv2.imread('qiantanglaoniangjiu_logo_smallist.png',0)
-frame_list = get_isads_list(video_name, template)
+frame_list = get_isads_list(video_name, template, [30,77,660,730], 0.5)
 
 # trim ending
 template_end = cv2.imread('end_logo.png',0)
@@ -64,9 +64,8 @@ cap = cv2.VideoCapture(video_name+".ts")
 backward_index = len(frame_list)-1
 cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
 success, bgr_image = cap.read()
-while success and not is_ads(bgr_image, template_end, 0.9):
+while success and not is_ads(bgr_image, template_end, 0.7):
     backward_index -= 1
-    print(backward_index)
     cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
     success, bgr_image = cap.read()
     # only reverse check last 1/5 part
@@ -74,7 +73,7 @@ while success and not is_ads(bgr_image, template_end, 0.9):
         break
 frame_list = frame_list[:backward_index] + len(frame_list[backward_index:])*[1,]
 
-frame_groups = extract_content_frames(smooth_and_compress(frame_list))
+frame_groups = extract_content_frames(smooth_and_compress(pooling_denoise(frame_list)))
 print(frame_groups)
 ffmpeg_command_single(video_name, frame_groups)
 

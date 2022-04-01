@@ -133,7 +133,7 @@ def videoDownloader(fileUrl, filePath):
 
                 ts_file.write(doc)     
             
-            time.sleep(1)
+            time.sleep(dur)
             seg_seq = seg_seq + 1
             
         if m3u8_obj.is_endlist:

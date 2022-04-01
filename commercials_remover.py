@@ -1,7 +1,8 @@
 from __future__ import division
-import cv2, os
+import cv2, os, math
 import numpy as np
 from tqdm import tqdm
+from itertools import groupby
 
 
 # w, h = template.shape[::-1]
@@ -26,7 +27,7 @@ def is_ads(img, template, threshold):
 duration = 0
 frame_count_read = 0
 # PREFERED_STEP should set to 0, if want to read frame by frame
-def get_isads_list(ts_name, template, threshold=0.8, PREFERED_STEP=200-1):
+def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=200-1):
     # read into
     video_capture = cv2.VideoCapture(ts_name+".ts") 
 
@@ -38,6 +39,14 @@ def get_isads_list(ts_name, template, threshold=0.8, PREFERED_STEP=200-1):
     size = (int(video_capture.get(3)), int(video_capture.get(4)))
 
     success, bgr_image = video_capture.read()
+    if roi:
+        # bgr_image[y:y+h , x:x+w]
+        #
+        # 0-------------
+        # |      [2][3]
+        # |   [0]
+        # |   [1]
+        bgr_image = bgr_image[roi[0]:roi[1] , roi[2]:roi[3]]
 
     # len(frame_list) != frame_count, why?
     pbar = tqdm(total=frame_count)
@@ -123,8 +132,18 @@ def get_isads_list(ts_name, template, threshold=0.8, PREFERED_STEP=200-1):
     global frame_count_read
     frame_count_read = len(frame_list)
     return frame_list
+
+def pooling_denoise(frame_list):
+    window = 400
+    frame_list_ae_size = int(window/2)
+    frame_list_add_empty = [0,]*frame_list_ae_size + frame_list + [0,]*frame_list_ae_size
+    frame_list_denosed = []
+    for i in range(len(frame_list)):
+        window_list = frame_list_add_empty[i:i+frame_list_ae_size]
+        window_average = sum(window_list)/len(window_list)
+        frame_list_denosed.append(math.ceil(window_average))
+    return frame_list_denosed
     
-from itertools import groupby
 def smooth_and_compress(frame_list):
     groups = [(k, sum(1 for i in g)) for k,g in groupby(frame_list)]
     # to find outliers
