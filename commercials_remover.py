@@ -174,11 +174,40 @@ def smooth_and_compress(frame_list):
             compressed_groups.append(group)
             last_group = group
     return compressed_groups
+
+# fix the big scrolling text blocking
+# focus on 0 at first
+def smooth_and_compress2(frame_list):
+    groups = [(k, sum(1 for i in g)) for k,g in groupby(frame_list)]
+    # to find big non-ads gaps
+    big_enough_group = 600
+    for index, group in enumerate(groups):
+        # no more than 5 consecutive mis-recognized frames in a group (sliding window)
+        if group[1] > big_enough_group and group[0] == 0:
+            groups[index] = (-1, groups[index][1])
+    # flatten
+    groups = uncompressed_groups(groups)
+    # if i not -1, than i = i-1
+    groups = [0 if i != -1 else i for i in groups]
+    # add 1 to all items
+    groups = [i+1 for i in groups]
+    # group it
+    groups = [(k, sum(1 for i in g)) for k,g in groupby(groups)]
+    # find too small group of fake 1
+    too_small_group = 600
+    for index, group in enumerate(groups):
+        # no more than 5 consecutive mis-recognized frames in a group (sliding window)
+        if group[1] < too_small_group and group[0] == 1:
+            groups[index] = (0, groups[index][1])
+    # flatten and re-group
+    groups = uncompressed_groups(groups)
+    compressed_groups = [(k, sum(1 for i in g)) for k,g in groupby(groups)]
+    return compressed_groups
     
 def uncompressed_groups(compressed_groups):
     # uncompress to list of list
     list_of_modified_list = [[i[0] for j in range(i[1])] for i in compressed_groups]
-    # flat the list of list
+    # flat the list of list: reshape
     flatted_list = sum(list_of_modified_list, [])
     return flatted_list
     

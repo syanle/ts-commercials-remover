@@ -56,7 +56,11 @@ videoDownloader(videoUrl, video_name+'.ts')
 from commercials_remover import *
 
 template = cv2.imread('qiantanglaoniangjiu_logo_smallist.png',0)
-frame_list = get_isads_list(video_name, template, [30,77,660,730], 0.5)
+template = template[0:15 , 0:40]
+# [30,77,660,730] for searching into full logo
+# frame_list = get_isads_list(video_name, template, [30,77,660,730], 0.6)
+# [30,52,665,720] for only two words "qiantang", 0.6 will be all the wrong matches
+frame_list = get_isads_list(video_name, template, [30,58,665,715], 0.7)
 
 # trim ending
 template_end = cv2.imread('end_logo.png',0)
@@ -66,6 +70,7 @@ cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
 success, bgr_image = cap.read()
 while success and not is_ads(bgr_image, template_end, 0.7):
     backward_index -= 1
+    print(backward_index)
     cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
     success, bgr_image = cap.read()
     # only reverse check last 1/5 part
@@ -73,7 +78,7 @@ while success and not is_ads(bgr_image, template_end, 0.7):
         break
 frame_list = frame_list[:backward_index] + len(frame_list[backward_index:])*[1,]
 
-frame_groups = extract_content_frames(smooth_and_compress(pooling_denoise(frame_list)))
+frame_groups = extract_content_frames(smooth_and_compress2(frame_list))
 print(frame_groups)
 ffmpeg_command_single(video_name, frame_groups)
 
