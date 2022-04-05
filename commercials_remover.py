@@ -217,11 +217,13 @@ def extract_content_frames(compressed_groups):
     for group in compressed_groups:
         if len(content_fragments) == 0:
             if group[0] == 1:
+                # add it, before jump out
+                frame_addup += group[1]
                 continue
             elif group[0] == 0:
-                content_fragments.append((0, group[1]))
+                content_fragments.append((frame_addup, frame_addup+group[1]))
         elif group[0] == 0:
-            content_fragments.append((frame_addup+1, frame_addup+group[1]))
+            content_fragments.append((frame_addup, frame_addup+group[1]))
         frame_addup += group[1]
     return content_fragments
     
