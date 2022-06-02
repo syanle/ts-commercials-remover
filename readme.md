@@ -11,5 +11,5 @@ This project is compatible with both Python version 2 and 3.
 - opencv
 - numpy
 - m3u8
-- requests
+- ~~requests~~
 - tqdm

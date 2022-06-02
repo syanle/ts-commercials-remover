@@ -1,5 +1,6 @@
+# coding:utf-8
 from __future__ import division
-import cv2, os, math
+import cv2, os, math, glob
 import numpy as np
 from tqdm import tqdm
 from itertools import groupby
@@ -178,6 +179,7 @@ def smooth_and_compress(frame_list):
 # fix the big scrolling text blocking
 # focus on 0 at first
 def smooth_and_compress2(frame_list):
+    # dim higher priority as 1
     groups = [(k, sum(1 for i in g)) for k,g in groupby(frame_list)]
     # to find big non-ads gaps
     big_enough_group = 600
@@ -187,20 +189,28 @@ def smooth_and_compress2(frame_list):
             groups[index] = (-1, groups[index][1])
     # flatten
     groups = uncompressed_groups(groups)
-    # if i not -1, than i = i-1
+    # if i not -1, than i = 0
     groups = [0 if i != -1 else i for i in groups]
     # add 1 to all items
     groups = [i+1 for i in groups]
     # group it
     groups = [(k, sum(1 for i in g)) for k,g in groupby(groups)]
+    print("after 1st loop", groups)
     # find too small group of fake 1
     too_small_group = 600
     for index, group in enumerate(groups):
         # no more than 5 consecutive mis-recognized frames in a group (sliding window)
         if group[1] < too_small_group and group[0] == 1:
             groups[index] = (0, groups[index][1])
+        # set back the priority 2: e.g. the ending
+        if group[0] > 1:
+            groups[index] = (1, groups[index][1])
     # flatten and re-group
     groups = uncompressed_groups(groups)
+    # recover the higher priority 1
+    for index, priority_flag in enumerate(frame_list):
+        if priority_flag > 1:
+            groups[index] = 1
     compressed_groups = [(k, sum(1 for i in g)) for k,g in groupby(groups)]
     return compressed_groups
     
@@ -240,12 +250,33 @@ def ffmpeg_command_single(ts_name, frame_groups):
         # https://superuser.com/questions/361329/how-can-i-get-the-length-of-a-video-file-from-the-console
         # have to choose -t duration
         command = "ffmpeg -hide_banner -ss '{:.2f}' -i '{}.ts' -t '{:.2f}' -avoid_negative_ts make_zero -c copy -map '0:0' -map '0:1' -map_metadata 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-seg{:02d}.ts'".format(time[0],ts_name,time[1]-time[0],ts_name,index)
+        if os.name == 'nt':
+            command = command.replace("'", "")
+        print(command)
         os.system(command)
         temp_list.append("{}-seg{:02d}.ts".format(ts_name, index))
-    os.system("rm {}.ts".format(ts_name))
+    # os.system("rm {}.ts".format(ts_name))
+    # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: '<itself>'
+    # os.remove("{}.ts".format(ts_name))
     # https://stackoverflow.com/questions/47853134/os-system-unable-to-call-file-with-left-parenthesis-in-filename
     # merge_command = "find . -type f -name '{}-seg*ts' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-trimmed.ts'".format(ts_name, ts_name)
-    seg_files = ''.join(["file '{}'\n".format(seg) for seg in temp_list])
-    merge_command = "printf \"{}\" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-trimmed.ts'".format(seg_files, ts_name)
+    
+    if os.name == 'nt':
+        seg_files = ' & '.join(["echo file file:{}".format(seg) for seg in temp_list])
+        merge_command = "({}) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist file,pipe -i - -c copy -map 0 -movflags +faststart -ignore_unknown -f mpegts -y {}-trimmed.ts".format(seg_files, ts_name)
+    else:
+        seg_files = ''.join(["file 'file:{}'\n".format(seg) for seg in temp_list])
+        merge_command = "printf \"{}\" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-trimmed.ts'".format(seg_files, ts_name)
+    print(merge_command)
     os.system(merge_command)
-    os.system("rm {}-seg*ts".format(ts_name))
+    # os.system("rm {}-seg*ts".format(ts_name))
+    
+    # Get a list of all the file paths that ends with .txt from in specified directory
+    fileList = glob.glob("{}-seg*ts".format(ts_name))
+    # Iterate over the list of filepaths & remove each file.
+    for filePath in fileList:
+        try:
+            os.remove(filePath)
+            # print('do not remove')
+        except:
+            print("Error while deleting file : ", filePath)

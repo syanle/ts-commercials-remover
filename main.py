@@ -21,13 +21,14 @@ def dt2stamp(dt):
 # videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/1643974320000,1643976600000?a=1000"
 
 def get_date():
-    beijing_today = datetime.utcnow().date() + timedelta(hours = 8)
-    return beijing_today
+    beijing_today = datetime.utcnow() + timedelta(hours = 8)
+    return beijing_today.date()
 
+# bj_today = get_date() - timedelta(days = 1)
 bj_today = get_date()
 
 start_time = datetime(bj_today.year, bj_today.month, bj_today.day, 19, 32, 0, 0)
-end_time = datetime(bj_today.year, bj_today.month, bj_today.day, 20, 10, 0, 0)
+end_time = datetime(bj_today.year, bj_today.month, bj_today.day, 20, 8, 35, 0)
 
 # change working dir to the script's dir
 abspath = os.path.abspath(__file__)
@@ -39,10 +40,12 @@ if PYTHON_MAJOR_VERSION < (3,):
     # have to give the string in unicode and than encode
     # to escape from ascii taking over the conversion,
     # like "中文".decode('ascii') no matter #coding declaration 
-    video_name_u = u"《钱塘老娘舅》"+start_time.strftime("%Y年%m月%d日").decode('utf-8')
-    video_name = video_name_u.encode('utf-8')
+    # video_name_u = u"《钱塘老娘舅》"+start_time.strftime("%Y年%m月%d日").decode('utf-8')
+    video_name_u = u"《钱塘老娘舅》"+start_time.strftime('%Y{y}%m{m}%d{d}').format(y='年', m='月', d='日').decode('utf-8')
+    video_name = video_name_u
 else:
-    video_name = "《钱塘老娘舅》"+start_time.strftime("%Y年%m月%d日")
+    # video_name = "《钱塘老娘舅》"+start_time.strftime("%Y年%m月%d日")
+    video_name = "《钱塘老娘舅》"+start_time.strftime('%Y{y}%m{m}%d{d}').format(y='年', m='月', d='日')
 
 # videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
 # channel06 is another choice when channel006 is broken
@@ -51,6 +54,7 @@ else:
 videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel06/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
 videoDownloader(videoUrl, video_name+'.ts')
 
+# sys.exit("Only for downloading")
 
 # ads remover
 from commercials_remover import *
@@ -75,8 +79,15 @@ while success and not is_ads(bgr_image, template_end, 0.7):
     success, bgr_image = cap.read()
     # only reverse check last 1/5 part
     if len(frame_list)-backward_index > len(frame_list)/5:
+        print("not found!")
         break
-frame_list = frame_list[:backward_index] + len(frame_list[backward_index:])*[1,]
+print('the end is at frame {}'.format(backward_index))
+# end frames label as priority of 2, to prevent from denoised in case the end is a small segment
+frame_list = frame_list[:backward_index] + len(frame_list[backward_index:])*[2,]
+
+import pickle
+with open(video_name+".picklefile", "wb") as f:
+    pickle.dump(frame_list, f)
 
 frame_groups = extract_content_frames(smooth_and_compress2(frame_list))
 print(frame_groups)
