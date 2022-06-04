@@ -4,31 +4,46 @@ import cv2, os, math, glob
 import numpy as np
 from tqdm import tqdm
 from itertools import groupby
+from collections import deque
 
 
 # w, h = template.shape[::-1]
 
-def is_ads(img, template, threshold):
-    img_rgb = img
-    img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
+class LogoPredator:
+    def __init__(self, template, threshold=0.8, roi=False):
+        self.template = template
+        self.roi = roi
+        self.threshold = threshold
 
-    res = cv2.matchTemplate(img_gray,template,cv2.TM_CCOEFF_NORMED)
-    # 0.9 will fail if running words blocked
-    # threshold = 0.8
-    loc = np.where( res >= threshold)
+    def is_ads(self, img):
+        img_rgb = img
+        if self.roi:
+            # bgr_image[y:y+h , x:x+w]
+            #
+            # 0-------------
+            # |      [2][3]
+            # |   [0]
+            # |   [1]
+            img_rgb = img_rgb[self.roi[0]:self.roi[1] , self.roi[2]:self.roi[3]]
+        img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
 
-    # plot a box over the matched img
-    # for pt in zip(*loc[::-1]):
-    #     cv2.rectangle(img_rgb, pt, (pt[0] + w, pt[1] + h), (0,255,255), 2)
+        res = cv2.matchTemplate(img_gray,self.template,cv2.TM_CCOEFF_NORMED)
+        # 0.9 will fail if running words blocked
+        # threshold = 0.8
+        loc = np.where(res >= self.threshold)
 
-    _is_ads = bool(loc[0].size and loc[1].size)
+        # plot a box over the matched img
+        # for pt in zip(*loc[::-1]):
+        #     cv2.rectangle(img_rgb, pt, (pt[0] + w, pt[1] + h), (0,255,255), 2)
 
-    return _is_ads
+        _is_ads = bool(loc[0].size and loc[1].size)
+
+        return _is_ads
 
 duration = 0
 frame_count_read = 0
 # PREFERED_STEP should set to 0, if want to read frame by frame
-def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=200-1):
+def get_isads_list(ts_name, *args, PREFERED_STEP=200-1):
     # read into
     video_capture = cv2.VideoCapture(ts_name+".ts") 
 
@@ -40,14 +55,6 @@ def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=20
     size = (int(video_capture.get(3)), int(video_capture.get(4)))
 
     success, bgr_image = video_capture.read()
-    if roi:
-        # bgr_image[y:y+h , x:x+w]
-        #
-        # 0-------------
-        # |      [2][3]
-        # |   [0]
-        # |   [1]
-        bgr_image = bgr_image[roi[0]:roi[1] , roi[2]:roi[3]]
 
     # len(frame_list) != frame_count, why?
     pbar = tqdm(total=frame_count)
@@ -59,7 +66,13 @@ def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=20
     # PREFERED_STEP = 200-1 # just regard it as a number, step should be renamed to gap, for a better understanding
     current_step = PREFERED_STEP
     backward_refine_records = None
-    last_jump_ads_int = int(is_ads(bgr_image, template, threshold))
+
+    predators = deque()
+    for pd in args:
+        predators.append(pd)
+
+    # time-costing to check each but simple for only onetime
+    last_jump_ads_int = int(any([pd.is_ads(bgr_image) for pd in predators]))
     frame_list = [last_jump_ads_int,]
     while success:  # read frames
         current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
@@ -68,7 +81,15 @@ def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=20
             # index won't exceed frame_count
             if current_step == PREFERED_STEP and current_cap_cursor+current_step+10 >= frame_count:
                 success, bgr_image = video_capture.read()
-                ads_int = int(is_ads(bgr_image, template, threshold))
+                # check a frame against a list of templates
+                for pd_index, pd in enumerate(list(predators)):
+                    ads_int = int(pd.is_ads(bgr_image))
+                    if ads_int == 1:
+                        # skip following pd loops
+                        if pd_index == 0:
+                            break
+                        else:
+                            predators.rotate(-pd_index)
                 frame_list.append(ads_int)
                 current_step = 1-1 # 0, actually jump frame by frame
                 backward_refine_records = None
@@ -81,7 +102,14 @@ def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=20
                     # must update after set, otherwise current_cap_cursor in following else condition will be wrong
                     current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
                     success, bgr_image = video_capture.read()
-                    ads_int = int(is_ads(bgr_image, template, threshold))
+                    for pd_index, pd in enumerate(list(predators)):
+                        ads_int = int(pd.is_ads(bgr_image))
+                        if ads_int == 1:
+                            # skip following pd loops
+                            if pd_index == 0:
+                                break
+                            else:
+                                predators.rotate(-pd_index)
                     # same as last big jump
                     if ads_int == last_jump_ads_int:
                         frame_list += [ads_int]*(current_step+1)
@@ -93,7 +121,14 @@ def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=20
                         # must update after set
                         current_cap_cursor = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
                         success, bgr_image = video_capture.read()
-                        ads_int = int(is_ads(bgr_image, template, threshold))
+                        for pd_index, pd in enumerate(list(predators)):
+                            ads_int = int(pd.is_ads(bgr_image))
+                            if ads_int == 1:
+                                # skip following pd loops
+                                if pd_index == 0:
+                                    break
+                                else:
+                                    predators.rotate(-pd_index)
                         frame_list.append(ads_int)
                         # pbar.update(1)
                         current_step = 0
@@ -105,7 +140,14 @@ def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=20
                     # to improve
                     if not success:
                         break
-                    ads_int = int(is_ads(bgr_image, template, threshold))
+                    for pd_index, pd in enumerate(list(predators)):
+                        ads_int = int(pd.is_ads(bgr_image))
+                        if ads_int == 1:
+                            # skip following pd loops
+                            if pd_index == 0:
+                                break
+                            else:
+                                predators.rotate(-pd_index)
                     frame_list.append(ads_int)
                     # pbar.update(1)
                     if backward_refine_records != None:
@@ -122,7 +164,14 @@ def get_isads_list(ts_name, template, roi=False, threshold=0.8, PREFERED_STEP=20
             # to improve
             if not success:
                 break
-            ads_int = int(is_ads(bgr_image, template, threshold))
+            for pd_index, pd in enumerate(list(predators)):
+                ads_int = int(pd.is_ads(bgr_image))
+                if ads_int == 1:
+                    # skip following pd loops
+                    if pd_index == 0:
+                        break
+                    else:
+                        predators.rotate(-pd_index)
             frame_list.append(ads_int)
         pbar.update(video_capture.get(cv2.CAP_PROP_POS_FRAMES) - pbar.n)
         # if not equal, means frame_list appended incorrectly 

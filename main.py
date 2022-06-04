@@ -52,27 +52,34 @@ else:
 # 06 is grabbed from http://tv.cztv.com/live1
 # 006 is from http://www.cztv.com/live/ the latter one is in a more old-fasion style
 videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel06/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
-videoDownloader(videoUrl, video_name+'.ts')
+# videoDownloader(videoUrl, video_name+'.ts')
 
 # sys.exit("Only for downloading")
 
 # ads remover
 from commercials_remover import *
 
-template = cv2.imread('qiantanglaoniangjiu_logo_smallist.png',0)
-template = template[0:15 , 0:40]
+qiantang_template = cv2.imread('qiantanglaoniangjiu_logo_smallist.png',0)
+# further cropping
+qiantang_template = qiantang_template[0:15 , 0:40]
+qiantang_predator = LogoPredator(qiantang_template, 0.7, [30,58,665,715])
+
+huiren_template = cv2.imread('huiren_logo_smallist.png',0)
+huiren_predator = LogoPredator(huiren_template, 0.7, [92,165,264,356])
+
 # [30,77,660,730] for searching into full logo
 # frame_list = get_isads_list(video_name, template, [30,77,660,730], 0.6)
 # [30,52,665,720] for only two words "qiantang", 0.6 will be all the wrong matches
-frame_list = get_isads_list(video_name, template, [30,58,665,715], 0.7)
+frame_list = get_isads_list(video_name, qiantang_predator, huiren_predator)
 
 # trim ending
-template_end = cv2.imread('end_logo.png',0)
+template_end = cv2.imread('end_logo.png', 0)
+end_predator = LogoPredator(template_end, 0.7)
 cap = cv2.VideoCapture(video_name+".ts")
 backward_index = len(frame_list)-1
 cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
 success, bgr_image = cap.read()
-while success and not is_ads(bgr_image, template_end, 0.7):
+while success and not end_predator.is_ads(bgr_image):
     backward_index -= 1
     print(backward_index)
     cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
