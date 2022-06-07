@@ -52,7 +52,7 @@ else:
 # 06 is grabbed from http://tv.cztv.com/live1
 # 006 is from http://www.cztv.com/live/ the latter one is in a more old-fasion style
 videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel06/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
-# videoDownloader(videoUrl, video_name+'.ts')
+#videoDownloader(videoUrl, video_name+'.ts')
 
 # sys.exit("Only for downloading")
 
@@ -78,11 +78,11 @@ totoal_frames_2_check = len(frame_list)/10
 pbar = tqdm(total=totoal_frames_2_check)
 template_begin = cv2.imread('begin_logo.png', 0)
 template_begin = template_begin[170:520,420:800]
-end_predator = LogoPredator(template_begin, 0.7)
+begin_predator = LogoPredator(template_begin, 0.7)
 cap = cv2.VideoCapture(video_name+".ts")
 current_cap_cursor = cap.get(cv2.CAP_PROP_POS_FRAMES)
 success, bgr_image = cap.read()
-while success and not end_predator.is_ads(bgr_image):
+while success and not begin_predator.is_ads(bgr_image):
     pbar.update(1)
     success, bgr_image = cap.read()
     current_cap_cursor = cap.get(cv2.CAP_PROP_POS_FRAMES)
@@ -100,25 +100,32 @@ frame_list = len(frame_list[:int(current_cap_cursor+30)])*[2,] + frame_list[int(
 
 
 # trim ending
+totoal_frames_2_check = len(frame_list)/10
+pbar = tqdm(total=totoal_frames_2_check)
 template_end = cv2.imread('end_logo.png', 0)
-template_end = template_end[75:208, 566:714]
-end_predator = LogoPredator(template_end, 0.7, [180,345,555,725]) #, [60,222,555,725]
+template_end = template_end[270:400, 1030:1160]
+end_predator = LogoPredator(template_end, 0.7, [260,410,1020,1170]) #, [60,222,555,725]
 cap = cv2.VideoCapture(video_name+".ts")
-backward_index = len(frame_list)-1
-cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
+# set to the end at first, don't forget to -1
+cap.set(cv2.CAP_PROP_POS_FRAMES, len(frame_list)-1)
 success, bgr_image = cap.read()
+current_cap_cursor = cap.get(cv2.CAP_PROP_POS_FRAMES)
 while success and not end_predator.is_ads(bgr_image):
-    backward_index -= 5
-    print(backward_index)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, current_cap_cursor-4)
+    pbar.update(4-1)
     success, bgr_image = cap.read()
-    # only reverse check last 1/5 part
-    if len(frame_list)-backward_index > len(frame_list)/5:
+    current_cap_cursor = cap.get(cv2.CAP_PROP_POS_FRAMES)
+    print(current_cap_cursor)
+    if current_cap_cursor < len(frame_list)-totoal_frames_2_check:
+        current_cap_cursor = 0
         print("not found!")
         break
-print('the end is at frame {}'.format(backward_index))
-# end frames label as priority of 2, to prevent from denoised in case the end is a small segment
-frame_list = frame_list[:backward_index] + len(frame_list[backward_index:])*[2,]
+pbar.update(len(frame_list) - pbar.n)
+pbar.close()
+print('the end is at frame {}'.format(current_cap_cursor))
+# the ending frames label as priority of 2, to prevent from denoised in case it is a small segment
+frame_list = frame_list[:int(current_cap_cursor-1)] + len(frame_list[int(current_cap_cursor-1):])*[2,]
+
 
 import pickle
 with open(video_name+".picklefile", "wb") as f:
