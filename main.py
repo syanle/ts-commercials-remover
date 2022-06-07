@@ -18,7 +18,7 @@ def dt2stamp(dt):
     timestamp = calendar.timegm(dt.timetuple())
     return str(int(float(timestamp)*1000))
 
-# videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/1643974320000,1643976600000?a=1000"
+videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/1643974320000,1643976600000?a=1000"
 
 def get_date():
     beijing_today = datetime.utcnow() + timedelta(hours = 8)
@@ -72,15 +72,43 @@ huiren_predator = LogoPredator(huiren_template, 0.7, [92,165,264,356])
 # [30,52,665,720] for only two words "qiantang", 0.6 will be all the wrong matches
 frame_list = get_isads_list(video_name, qiantang_predator, huiren_predator)
 
+
+# trim begining
+totoal_frames_2_check = len(frame_list)/10
+pbar = tqdm(total=totoal_frames_2_check)
+template_begin = cv2.imread('begin_logo.png', 0)
+template_begin = template_begin[170:520,420:800]
+end_predator = LogoPredator(template_begin, 0.7)
+cap = cv2.VideoCapture(video_name+".ts")
+current_cap_cursor = cap.get(cv2.CAP_PROP_POS_FRAMES)
+success, bgr_image = cap.read()
+while success and not end_predator.is_ads(bgr_image):
+    pbar.update(1)
+    success, bgr_image = cap.read()
+    current_cap_cursor = cap.get(cv2.CAP_PROP_POS_FRAMES)
+    # only reverse check last 1/10 part
+    if current_cap_cursor > totoal_frames_2_check:
+        current_cap_cursor = 0
+        print("not found!")
+        break
+pbar.update(totoal_frames_2_check - pbar.n)
+pbar.close()
+print('the begin is at frame {}'.format(current_cap_cursor))
+# begining frames label as priority of 2, to prevent from denoised in case it is a small segment
+# the logo lasting about 30 frames
+frame_list = len(frame_list[:int(current_cap_cursor+30)])*[2,] + frame_list[int(current_cap_cursor+30):]
+
+
 # trim ending
 template_end = cv2.imread('end_logo.png', 0)
-end_predator = LogoPredator(template_end, 0.7)
+template_end = template_end[75:208, 566:714]
+end_predator = LogoPredator(template_end, 0.7, [180,345,555,725]) #, [60,222,555,725]
 cap = cv2.VideoCapture(video_name+".ts")
 backward_index = len(frame_list)-1
 cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
 success, bgr_image = cap.read()
 while success and not end_predator.is_ads(bgr_image):
-    backward_index -= 1
+    backward_index -= 5
     print(backward_index)
     cap.set(cv2.CAP_PROP_POS_FRAMES, backward_index)
     success, bgr_image = cap.read()
@@ -96,7 +124,7 @@ import pickle
 with open(video_name+".picklefile", "wb") as f:
     pickle.dump(frame_list, f)
 
-frame_groups = extract_content_frames(smooth_and_compress2(frame_list))
+frame_groups = extract_content_frames(lag_correction(smooth_and_compress2(frame_list)))
 print(frame_groups)
 ffmpeg_command_single(video_name, frame_groups)
 

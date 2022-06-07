@@ -40,17 +40,21 @@ class LogoPredator:
 
         return _is_ads
 
-duration = 0
+# duration = 0
+fps = 0
+frame_count = 0
 frame_count_read = 0
 # PREFERED_STEP should set to 0, if want to read frame by frame
 def get_isads_list(ts_name, *args, PREFERED_STEP=200-1):
     # read into
     video_capture = cv2.VideoCapture(ts_name+".ts") 
 
+    global frame_count
     frame_count = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
+    global fps
     fps = video_capture.get(5)
-    global duration
-    duration = frame_count/fps
+    # global duration
+    # duration = frame_count/fps
 
     size = (int(video_capture.get(3)), int(video_capture.get(4)))
 
@@ -260,7 +264,18 @@ def smooth_and_compress2(frame_list):
     for index, priority_flag in enumerate(frame_list):
         if priority_flag > 1:
             groups[index] = 1
+
     compressed_groups = [(k, sum(1 for i in g)) for k,g in groupby(groups)]
+    return compressed_groups
+
+def lag_correction(compressed_groups):
+    groups = uncompressed_groups(compressed_groups)
+    # ts four-frame-lag correction, "ads range expansion"
+    groups_rotate_ahead = groups[6:]+[0,0,0,0,0,0]
+    groups_rotate_behind = [0,0,0,0] + groups[:-4]
+    groups_corrected = [a or b or c for a, b, c in zip(groups, groups_rotate_ahead, groups_rotate_behind)]
+
+    compressed_groups = [(k, sum(1 for i in g)) for k,g in groupby(groups_corrected)]
     return compressed_groups
     
 def uncompressed_groups(compressed_groups):
@@ -295,7 +310,10 @@ def ffmpeg_command_single(ts_name, frame_groups):
     temp_list = []
     for index, frame_group in enumerate(frame_groups):
         # no need to round the cutpoint, since ffmpeg will cut at the nearest keyframe (w/ given paras?
-        time = [i/frame_count_read*duration for i in frame_group]
+        # fraction reduction
+        # duration = frame_count/fps
+        # time = [i/frame_count*duration for i in frame_group]
+        time = [i/fps for i in frame_group]
         # https://superuser.com/questions/361329/how-can-i-get-the-length-of-a-video-file-from-the-console
         # have to choose -t duration
         command = "ffmpeg -hide_banner -ss '{:.2f}' -i '{}.ts' -t '{:.2f}' -avoid_negative_ts make_zero -c copy -map '0:0' -map '0:1' -map_metadata 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-seg{:02d}.ts'".format(time[0],ts_name,time[1]-time[0],ts_name,index)
