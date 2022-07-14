@@ -52,7 +52,7 @@ else:
 # 06 is grabbed from http://tv.cztv.com/live1
 # 006 is from http://www.cztv.com/live/ the latter one is in a more old-fasion style
 videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel06/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
-#videoDownloader(videoUrl, video_name+'.ts')
+videoDownloader(videoUrl, video_name+'.ts')
 
 # sys.exit("Only for downloading")
 
@@ -70,7 +70,8 @@ huiren_predator = LogoPredator(huiren_template, 0.7, [92,165,264,356])
 # [30,77,660,730] for searching into full logo
 # frame_list = get_isads_list(video_name, template, [30,77,660,730], 0.6)
 # [30,52,665,720] for only two words "qiantang", 0.6 will be all the wrong matches
-frame_list = get_isads_list(video_name, qiantang_predator, huiren_predator)
+# frame_list = get_isads_list(video_name, qiantang_predator, huiren_predator)
+frame_list = get_isads_list(video_name, qiantang_predator)
 
 
 # trim begining
@@ -78,7 +79,7 @@ totoal_frames_2_check = len(frame_list)/10
 pbar = tqdm(total=totoal_frames_2_check)
 template_begin = cv2.imread('begin_logo.png', 0)
 template_begin = template_begin[170:520,420:800]
-begin_predator = LogoPredator(template_begin, 0.7)
+begin_predator = LogoPredator(template_begin, 0.7, [140,550,390,830])
 cap = cv2.VideoCapture(video_name+".ts")
 current_cap_cursor = cap.get(cv2.CAP_PROP_POS_FRAMES)
 success, bgr_image = cap.read()
@@ -96,7 +97,7 @@ pbar.close()
 print('the begin is at frame {}'.format(current_cap_cursor))
 # begining frames label as priority of 2, to prevent from denoised in case it is a small segment
 # the logo lasting about 30 frames
-frame_list = len(frame_list[:int(current_cap_cursor+30)])*[2,] + frame_list[int(current_cap_cursor+30):]
+frame_list = len(frame_list[:int(current_cap_cursor+50)])*[2,] + frame_list[int(current_cap_cursor+50):]
 
 
 # trim ending
@@ -105,7 +106,8 @@ pbar = tqdm(total=totoal_frames_2_check)
 template_end = cv2.imread('end_logo.png', 0)
 template_end = template_end[270:400, 1030:1160]
 end_predator = LogoPredator(template_end, 0.7, [260,410,1020,1170]) #, [60,222,555,725]
-cap = cv2.VideoCapture(video_name+".ts")
+############# uncomment it if cap is not set before ############
+# cap = cv2.VideoCapture(video_name+".ts")
 # set to the end at first, don't forget to -1
 cap.set(cv2.CAP_PROP_POS_FRAMES, len(frame_list)-1)
 success, bgr_image = cap.read()
@@ -126,6 +128,7 @@ print('the end is at frame {}'.format(current_cap_cursor))
 # the ending frames label as priority of 2, to prevent from denoised in case it is a small segment
 frame_list = frame_list[:int(current_cap_cursor-1)] + len(frame_list[int(current_cap_cursor-1):])*[2,]
 
+cap.release()
 
 import pickle
 with open(video_name+".picklefile", "wb") as f:

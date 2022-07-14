@@ -271,7 +271,7 @@ def smooth_and_compress2(frame_list):
 def lag_correction(compressed_groups):
     groups = uncompressed_groups(compressed_groups)
     # ts four-frame-lag correction, "ads range expansion"
-    groups_rotate_ahead = groups[6:]+[0,0,0,0,0,0]
+    groups_rotate_ahead = groups[6:]+[1,1,1,1,1,1]
     groups_rotate_behind = [0,0,0,0] + groups[:-4]
     groups_corrected = [a or b or c for a, b, c in zip(groups, groups_rotate_ahead, groups_rotate_behind)]
 
@@ -329,8 +329,10 @@ def ffmpeg_command_single(ts_name, frame_groups):
     # merge_command = "find . -type f -name '{}-seg*ts' -printf \"file '$PWD/%p'\n\" | sort | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-trimmed.ts'".format(ts_name, ts_name)
     
     if os.name == 'nt':
-        seg_files = ' & '.join(["echo file file:{}".format(seg) for seg in temp_list])
+        seg_files = ' & '.join(["echo file 'file:{}'".format(seg) for seg in temp_list])
         merge_command = "({}) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist file,pipe -i - -c copy -map 0 -movflags +faststart -ignore_unknown -f mpegts -y {}-trimmed.ts".format(seg_files, ts_name)
+        # cmd shell
+        os.system('chcp 65001')
     else:
         seg_files = ''.join(["file 'file:{}'\n".format(seg) for seg in temp_list])
         merge_command = "printf \"{}\" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -c copy -map 0 -movflags '+faststart' -ignore_unknown -f mpegts -y '{}-trimmed.ts'".format(seg_files, ts_name)
@@ -344,6 +346,11 @@ def ffmpeg_command_single(ts_name, frame_groups):
     for filePath in fileList:
         try:
             os.remove(filePath)
-            # print('do not remove')
         except:
             print("Error while deleting file : ", filePath)
+
+    orginal_ts = "{}.ts".format(ts_name)
+    try:
+        os.remove(orginal_ts)
+    except Exception as e:
+        print(e, "Error while deleting file : ", orginal_ts)
