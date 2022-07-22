@@ -59,12 +59,12 @@ videoDownloader(videoUrl, video_name+'.ts')
 # ads remover
 from commercials_remover import *
 
-qiantang_template = cv2.imread('qiantanglaoniangjiu_logo_smallist.png',0)
+qiantang_template = cv2.imread('img/qiantanglaoniangjiu_logo.png',0)
 # further cropping
-qiantang_template = qiantang_template[0:15 , 0:40]
-qiantang_predator = LogoPredator(qiantang_template, 0.7, [30,58,665,715])
+qiantang_template = qiantang_template[25:80 , 666:717]
+qiantang_predator = LogoPredator(qiantang_template, 0.7, [10,90,250,900])
 
-huiren_template = cv2.imread('huiren_logo_smallist.png',0)
+huiren_template = cv2.imread('img/huiren_logo_smallist.png',0)
 huiren_predator = LogoPredator(huiren_template, 0.7, [92,165,264,356])
 
 # [30,77,660,730] for searching into full logo
@@ -77,7 +77,7 @@ frame_list = get_isads_list(video_name, qiantang_predator)
 # trim begining
 totoal_frames_2_check = len(frame_list)/10
 pbar = tqdm(total=totoal_frames_2_check)
-template_begin = cv2.imread('begin_logo.png', 0)
+template_begin = cv2.imread('img/begin_logo.png', 0)
 template_begin = template_begin[170:520,420:800]
 begin_predator = LogoPredator(template_begin, 0.7, [140,550,390,830])
 cap = cv2.VideoCapture(video_name+".ts")
@@ -103,7 +103,7 @@ frame_list = len(frame_list[:int(current_cap_cursor+50)])*[2,] + frame_list[int(
 # trim ending
 totoal_frames_2_check = len(frame_list)/10
 pbar = tqdm(total=totoal_frames_2_check)
-template_end = cv2.imread('end_logo.png', 0)
+template_end = cv2.imread('img/end_logo.png', 0)
 template_end = template_end[270:400, 1030:1160]
 end_predator = LogoPredator(template_end, 0.7, [260,410,1020,1170]) #, [60,222,555,725]
 ############# uncomment it if cap is not set before ############
