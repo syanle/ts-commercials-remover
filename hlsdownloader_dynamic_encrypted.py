@@ -25,10 +25,13 @@ size_list = []
 
 # liuliang saving
 ###
-# import urllib2
+# try:
+#     import urllib.request as urllib2
+# except: # Python 2.x
+#     import urllib2
 # proxy = urllib2.ProxyHandler({
-    # 'http': '127.0.0.1:1081',
-    # 'https': '127.0.0.1:1081'
+#   'http': '127.0.0.1:8808',
+#   'https': '127.0.0.1:8808'
 # })
 # opener = urllib2.build_opener(proxy)
 # urllib2.install_opener(opener)

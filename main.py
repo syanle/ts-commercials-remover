@@ -1,3 +1,4 @@
+#! python3
 # coding:utf-8
 from hlsdownloader_dynamic_encrypted import videoDownloader
 import time, calendar, os, sys
@@ -18,14 +19,12 @@ def dt2stamp(dt):
     timestamp = calendar.timegm(dt.timetuple())
     return str(int(float(timestamp)*1000))
 
-videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel006/720p.m3u8/1643974320000,1643976600000?a=1000"
-
 def get_date():
     beijing_today = datetime.utcnow() + timedelta(hours = 8)
     return beijing_today.date()
 
-# bj_today = get_date() - timedelta(days = 1)
-bj_today = get_date()
+bj_today = get_date() - timedelta(days = 0)
+# bj_today = get_date()
 
 start_time = datetime(bj_today.year, bj_today.month, bj_today.day, 19, 32, 0, 0)
 end_time = datetime(bj_today.year, bj_today.month, bj_today.day, 20, 8, 35, 0)
@@ -51,7 +50,7 @@ else:
 # channel06 is another choice when channel006 is broken
 # 06 is grabbed from http://tv.cztv.com/live1
 # 006 is from http://www.cztv.com/live/ the latter one is in a more old-fasion style
-videoUrl = "http://yd-vl.cztv.com/channels/lantian/channel06/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
+videoUrl = "http://ali-vl.cztv.com/channels/lantian/channel006/720p.m3u8/{},{}?a=1000".format(dt2stamp(start_time),dt2stamp(end_time))
 videoDownloader(videoUrl, video_name+'.ts')
 
 # sys.exit("Only for downloading")
