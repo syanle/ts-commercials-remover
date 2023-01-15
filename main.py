@@ -103,8 +103,8 @@ frame_list = len(frame_list[:int(current_cap_cursor+50)])*[2,] + frame_list[int(
 totoal_frames_2_check = len(frame_list)/10
 pbar = tqdm(total=totoal_frames_2_check)
 template_end = cv2.imread('img/end_logo.png', 0)
-template_end = template_end[270:400, 1030:1160]
-end_predator = LogoPredator(template_end, 0.7, [260,410,1020,1170]) #, [60,222,555,725]
+template_end = template_end[295:342, 1072:1119]
+end_predator = LogoPredator(template_end, 0.7, [287,350,1068,1124]) #, [60,222,555,725]
 ############# uncomment it if cap is not set before ############
 # cap = cv2.VideoCapture(video_name+".ts")
 # set to the end at first, don't forget to -1
